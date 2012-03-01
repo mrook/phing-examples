@@ -1,0 +1,8 @@
+<project name="Example" default="default">
+    <taskdef name="sample"
+        classname="SampleTask" />
+
+    <target name="default">
+      <sample var="Hello World" />
+    </target>
+</project>

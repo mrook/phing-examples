@@ -1,0 +1,39 @@
+<project name="Demo" default="migrate">
+    <target name="init">
+        <pdosqlexec
+            src="changelog.sql"
+            url="mysql:host=localhost;dbname=demo"
+            userid="demo"
+            password="demo123"/>
+        <delete file="deploy.sql"/>
+        <delete file="undo_save.sql"/>
+        <delete file="undo.sql"/>
+    </target>
+    
+    <target name="migrate">
+        <dbdeploy
+            url="mysql:host=localhost;dbname=demo"
+            userid="demo"
+            password="demo123"
+            dir="deltas"
+            outputfile="deploy.sql"
+            undooutputfile="undo.sql"/>
+        <copy file="undo.sql" tofile="undo_save.sql"/>
+<!--     </target>
+
+    <target name="apply"> -->
+        <pdosqlexec
+            src="deploy.sql"
+            url="mysql:host=localhost;dbname=demo"
+            userid="demo"
+            password="demo123"/>
+    </target>
+
+    <target name="undo">
+        <pdosqlexec
+            src="undo_save.sql"
+            url="mysql:host=localhost;dbname=demo"
+            userid="demo"
+            password="demo123"/>
+    </target>
+</project>

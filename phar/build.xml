@@ -1,0 +1,21 @@
+<project name="Phar" default="build">
+	<target name="build">
+		<pharpackage
+			compression="gzip"
+			destfile="test.phar"
+			stub="stub.php"
+			basedir=".">
+			<fileset dir="hello">
+				<include name="**/**" />
+			</fileset>
+			<metadata>
+				<element name="version" value="1.0" />
+				<element name="authors">
+					<element name="John Doe">
+						<element name="e-mail" value="john@example.com" />
+					</element>
+				</element>
+			</metadata>
+		</pharpackage>
+	</target>
+</project>

@@ -1,0 +1,36 @@
+<project name="Demo" description="PHPUnit Demo" default="test">
+    <target name="test">
+        <phpunit haltonfailure="true" printsummary="true">
+            <batchtest>
+                <fileset dir="src">
+                    <include name="**/*Test.php"/>
+                </fileset>
+            </batchtest>
+        </phpunit>
+    </target>
+    
+    <target name="report">
+        <delete dir="reports"/>
+        <mkdir dir="reports/tests"/>
+        <mkdir dir="reports/coverage"/>
+        <coverage-setup database="reports/coverage.db">
+            <fileset dir="src">
+                <include name="**/*.php"/>
+                <exclude name="**/*Test.php"/>
+            </fileset>
+        </coverage-setup>
+        <phpunit codecoverage="true">
+            <formatter type="xml" todir="reports"/>
+            <batchtest>
+                <fileset dir="src">
+                    <include name="**/*Test.php"/>
+                </fileset>
+            </batchtest>
+        </phpunit>
+        <phpunitreport infile="reports/testsuites.xml"
+            format="frames" todir="reports/tests"/>
+        <coverage-report outfile="reports/coverage.xml">
+            <report todir="reports/coverage" title="Demo"/>
+        </coverage-report>
+    </target>
+</project>

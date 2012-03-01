@@ -1,0 +1,54 @@
+<project name="Demo" description="Jenkins Demo" default="build">
+    <fileset id="src_files" dir="src">
+        <include name="**/*.php"/>
+    </fileset>
+    
+    <fileset id="test_files" dir="tests">
+        <include name="**/*.php"/>
+    </fileset>
+    
+    <target name="clean">
+    	<delete dir="reports"/>
+    	<mkdir dir="reports"/>
+    </target>
+    
+    <target name="lint">
+        <phplint>
+            <fileset refid="src_files"/>
+        </phplint>
+    </target>
+    
+    <target name="test">
+        <mkdir dir="reports/tests"/>
+        <mkdir dir="reports/coverage"/>
+        <coverage-setup database="reports/coverage.db">
+            <fileset refid="src_files"/>
+        </coverage-setup>
+        <phpunit codecoverage="true" haltonfailure="true"
+        printsummary="true">
+            <formatter type="xml" todir="reports"/>
+            <formatter type="clover" todir="reports"/>
+            <batchtest classpath="src">
+                <fileset refid="test_files"/>
+            </batchtest>
+        </phpunit>
+        <phpunitreport infile="reports/testsuites.xml"
+            format="frames" todir="reports/tests"/>
+        <coverage-report outfile="reports/coverage.xml">
+            <report todir="reports/coverage" title="Demo"/>
+        </coverage-report>
+    </target>
+    
+    <target name="phpcs">
+    	<phpcodesniffer format="summary" standard="PEAR">
+    	    <fileset refid="src_files"/>
+    	    <formatter type="checkstyle" outfile="reports/checkstyle.xml"/>
+    	</phpcodesniffer>
+    </target>
+    
+    <target name="build" depends="clean,lint,test,phpcs">
+    	<zip destfile="demo.zip">
+    	    <fileset refid="src_files"/>
+    	</zip>
+    </target>
+</project>

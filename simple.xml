@@ -1,0 +1,10 @@
+<project name="Example" default="world">
+    <target name="hello">
+        <echo>Hello</echo>
+    </target>
+    
+    <target name="world" depends="hello">
+        <echo>World!</echo>
+    </target>
+</project>
+

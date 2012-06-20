@@ -1,0 +1,13 @@
+<project name="Demo" default="docs">
+	<target name="docs" description="Generate documentation">
+		<delete dir="output"/>
+		<mkdir dir="output"/>
+		
+		<phpdoc2 destdir="output" quiet="false"
+			title="The Phing Project">
+			<fileset dir="/home/michiel/dev/phing/classes/phing">
+				<include name="*.php"/>
+			</fileset>
+		</phpdoc2>
+	</target>
+</project>

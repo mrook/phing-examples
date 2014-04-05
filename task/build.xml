@@ -1,8 +1,13 @@
-<project name="Example" default="default">
-    <taskdef name="sample"
-        classname="SampleTask" />
+<project name="Count Lines" default="count">
+    <target name="count">
+        <taskdef name="countlines"
+            classpath="/home/michiel/tasks"
+            classname="CountLinesTask" />
 
-    <target name="default">
-      <sample var="Hello World" />
+        <countlines>
+            <fileset dir=".">
+                <include name="**/*.txt" />
+            </fileset>
+        </countlines>
     </target>
 </project>

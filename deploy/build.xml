@@ -1,0 +1,216 @@
+<?xml version="1.0"?>
+<project name="Phing Deploy Demo" basedir="." default="build">
+    <property name="build.dir" value="build" />
+    <property name="build.dir.project" value="${build.dir}/project" />
+    <property name="build.dir.artifacts" value="${build.dir}/artifacts" />
+
+    <!-- load properties -->
+    <property file="build.properties" />
+
+    <!-- executes remote command -->
+    <target name="deploy:ssh" hidden="true">
+        <echo>Executing command '${command}' on ${ssh.host}</echo>
+        <ssh host="${ssh.host}"
+            port="${ssh.port}"
+            username="${ssh.username}"
+            privkeyfile="${ssh.key.private}"
+            pubkeyfile="${ssh.key.public}"
+            command="${command}"
+            failonerror="true" />
+    </target>
+    
+    <!-- removes build artifacts -->
+    <target name="build:clean" description="Cleans up build artifacts">
+        <delete dir="${build.dir}" />
+        <mkdir dir="${build.dir}" />
+        <mkdir dir="${build.dir.project}" />
+        <mkdir dir="${build.dir.artifacts}" />
+    </target>
+
+    <!-- runs 'composer install' on exported project -->
+    <target name="build:composer" hidden="true">
+        <if>
+            <available file="composer.json" />
+            <then>
+                <exec checkreturn="true" command="composer install --no-dev --prefer-dist -o --no-progress" passthru="true" logoutput="true" dir="${build.dir.project}" />
+            </then>
+        </if>
+    </target>
+    
+    <!-- creates tar package -->
+    <target name="deploy:create-package" hidden="true">
+        <tstamp>
+            <format property="build.timestamp" pattern="%Y%m%d%H%M%S"/>
+        </tstamp>
+        <property name="build.release" value="${project.name}-${build.timestamp}" />
+        <property name="package.name" value="${build.release}.tar.gz" />
+        <property name="package.name.full" value="${build.dir.artifacts}/${package.name}" />
+        <echo>Creating dist package ${package.name}</echo>
+        
+        <tar destfile="${package.name.full}" basedir="${build.dir.project}" />
+    </target>
+    
+    <!-- uploads & extracts tar package, and makes sure symlink points to new version -->
+    <target name="deploy:upload" hidden="true">
+        <property name="deploy.location.project" value="${deploy.location}/${project.name}" />
+        
+        <echo>Creating directories</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="mkdir -p ${deploy.location.project}/${build.release}" />
+        </phingcall>
+        
+        <echo>Copying package</echo>
+        <scp host="${ssh.host}"
+            port="${ssh.port}"
+            username="${ssh.username}"
+            privkeyfile="${ssh.key.private}"
+            pubkeyfile="${ssh.key.public}"
+            todir="${deploy.location.project}/${build.release}"
+            file="${package.name.full}" />
+
+        <echo>Extracting package</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="cd ${deploy.location.project}/${build.release}; tar xzf ${package.name}" />
+        </phingcall>
+        
+        <echo>Setting permissions</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="chgrp -R ${deploy.group} ${deploy.location.project}/${build.release}; chmod g+w -R ${deploy.location.project}/${build.release}" />
+        </phingcall>
+
+        <echo>Creating symbolic link</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="cd ${deploy.location.project}; if [ -h &quot;current&quot; ]; then rm -f previous; mv current previous; fi; ln -s ${build.release} current" />
+        </phingcall>
+    </target>
+    
+    <!-- clean up old installations and packages -->
+    <target name="deploy:cleanup" hidden="true">
+        <echo>Deleting package</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="rm ${deploy.location.project}/${build.release}/${package.name}" />
+        </phingcall>
+        
+        <echo>Removing old deploys</echo>
+        <phingcall target="deploy:ssh">
+            <property name="command" value="(
+                cd ${deploy.location.project} &amp;&amp;
+                for dir in ${project.name}-* ; do
+                    echo &#34;&#36;&#123;dir&#125;&#34;;
+                done | sort -n | head -n -${deploy.keep} | xargs -I '%' rm -rf '%'
+                )" />
+        </phingcall>
+    </target>
+    
+    <!-- checks or asks for deployment settings -->
+    <target name="deploy:check-settings" hidden="true">
+        <echo>Checking your deployment settings...</echo>
+        <if>
+            <not>
+                <isset property="deploy.target" />
+            </not>
+            <then>
+                <input propertyname="deploy.target" validArgs="${targets.allowed}" promptChar=":">Please select a destination target </input>
+            </then>
+        </if>
+    </target>
+    
+    <!-- loads settings for chosen target -->
+    <target name="deploy:settings" depends="deploy:check-settings" hidden="true">
+        <echo>Loading settings for target ${deploy.target}</echo>
+        
+        <property name="target.properties" value="${deploy.target}.properties" />
+        
+        <if>
+            <not>
+                <available file="${target.properties}" />
+            </not>
+            <then>
+                <fail>Unable to find settings!</fail>
+            </then>
+        </if>
+        
+        <property file="${target.properties}" />
+    </target>
+    
+    <!-- stops processes on server (as defined by target config) -->
+    <target name="deploy:stop" description="Stops processes on server" depends="deploy:settings" if="deploy.stop">
+        <phingcall target="deploy:ssh">
+            <property name="command" value="${deploy.stop}" />
+        </phingcall>
+    </target>
+    
+    <!-- starts processes on server (as defined by target config) -->
+    <target name="deploy:start" description="Starts processes on server" depends="deploy:settings" if="deploy.start">
+        <phingcall target="deploy:ssh">
+            <property name="command" value="${deploy.start}" />
+        </phingcall>
+    </target>
+
+    <target
+        name="build:lint" hidden="true">
+        <phplint haltonfailure="true">
+            <fileset dir=".">
+                <include name="src/**" />
+            </fileset>
+        </phplint>
+    </target>
+
+    <target
+        name="build:test"
+        description="Runs tests">
+        <phpunit haltonfailure="true" printsummary="true">
+            <batchtest>
+                <fileset dir=".">
+                    <include name="test/**/*Test.php" />
+                </fileset>
+            </batchtest>
+            <formatter type="xml" outfile="demotests.xml" />
+        </phpunit>
+    </target>
+
+    <target
+        name="build:copy" hidden="true">
+        <copy todir="${build.dir.project}">
+            <fileset dir=".">
+                <include name="src/**" />
+            </fileset>
+        </copy>
+    </target>
+
+    <target
+        name="build" depends="build:clean, build:lint, build:test, build:copy, build:composer"
+        description="Builds the project">
+        <echo>Build complete</echo>
+    </target>
+
+    <target
+        name="deploy"
+        depends="deploy:settings, deploy:create-package, deploy:stop, deploy:upload, deploy:cleanup, deploy:start"
+        description="Deploys the project">
+        <echo>Deployment complete</echo>
+    </target>
+
+    <target
+        name="rollback"
+        depends="deploy:settings"
+        description="Rolls back to previous version">
+        <property name="deploy.location.project" value="${deploy.location}/${project.name}" />
+        <trycatch>
+            <try>
+                <ssh host="${ssh.host}"
+                    port="${ssh.port}"
+                    username="${ssh.username}"
+                    privkeyfile="${ssh.key.private}"
+                    pubkeyfile="${ssh.key.public}"
+                    command="cd ${deploy.location.project}; rm -f current; mv -f previous current"
+                    failonerror="true" />
+                <echo>Rollback complete</echo>
+            </try>
+            <catch>
+                <echo>No previous version deployed!</echo>
+            </catch>
+        </trycatch>
+    </target>
+</project>
+
